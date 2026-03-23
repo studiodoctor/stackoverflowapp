@@ -18,7 +18,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
   checks: write
   pull-requests: write
 
@@ -226,6 +226,23 @@ jobs:
 
       - name: Decode keystore
         run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/release.keystore
+
+      - name: Validate keystore
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS:         ${{ secrets.KEY_ALIAS }}
+        run: |
+          echo "Keystore file size: $(wc -c < app/release.keystore) bytes"
+          # Must be at least 100 bytes — a text file would be near 0
+          SIZE=$(wc -c < app/release.keystore)
+          if [ "$SIZE" -lt 100 ]; then
+            echo "ERROR: Keystore is only $SIZE bytes — KEYSTORE_BASE64 secret is not a valid base64-encoded .jks file."
+            echo "Follow CI_CD_SETUP.md to encode your keystore correctly."
+            exit 1
+          fi
+          # Try to list the keystore — fails immediately if the file is corrupt
+          keytool -list             -keystore app/release.keystore             -storepass "$KEYSTORE_PASSWORD"             -alias "$KEY_ALIAS"             -noprompt
+          echo "Keystore validated successfully"
 
       - name: Build signed release APK
         env:
