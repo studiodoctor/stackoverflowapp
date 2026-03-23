@@ -19,6 +19,7 @@ concurrency:
 
 env:
   JAVA_VERSION: '17'
+  GRADLE_VERSION: '8.7'
   GRADLE_OPTS: '-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.caching=true'
 
 jobs:
@@ -41,13 +42,13 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: temurin
 
-      # gradle/actions/setup-gradle handles wrapper validation, caching,
-      # AND downloads the wrapper JAR if it is missing from the repo.
-      - name: Setup Gradle
+      - name: Setup Gradle ${{ env.GRADLE_VERSION }}
         uses: gradle/actions/setup-gradle@v3
         with:
-          gradle-version: wrapper
-          cache-read-only: false
+          gradle-version: ${{ env.GRADLE_VERSION }}
+
+      - name: Regenerate Gradle wrapper
+        run: gradle wrapper --gradle-version=${{ env.GRADLE_VERSION }}
 
       - name: Run Android Lint
         run: ./gradlew lintDebug --stacktrace
@@ -78,22 +79,22 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: temurin
 
-      - name: Setup Gradle
+      - name: Setup Gradle ${{ env.GRADLE_VERSION }}
         uses: gradle/actions/setup-gradle@v3
         with:
-          gradle-version: wrapper
-          cache-read-only: false
+          gradle-version: ${{ env.GRADLE_VERSION }}
+
+      - name: Regenerate Gradle wrapper
+        run: gradle wrapper --gradle-version=${{ env.GRADLE_VERSION }}
 
       - name: Run unit tests
         run: ./gradlew testDebugUnitTest --stacktrace
 
       - name: Generate JaCoCo coverage report
-        # Always generate coverage even if tests fail — gives partial report
         if: always()
         run: ./gradlew jacocoTestReport --stacktrace
 
       - name: Upload test results (XML)
-        # Upload raw XML so the reporter step can read them
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -125,8 +126,6 @@ jobs:
           path: app/build/reports/jacoco/jacocoTestReport/jacocoTestReport.xml
           retention-days: 14
 
-      # Publish test summary as a Check Run on the PR / commit.
-      # Runs only when the test XML files actually exist (i.e. tests ran).
       - name: Check test results exist
         id: check-results
         if: always()
@@ -165,16 +164,19 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: temurin
 
-      - name: Setup Gradle
+      - name: Setup Gradle ${{ env.GRADLE_VERSION }}
         uses: gradle/actions/setup-gradle@v3
         with:
-          gradle-version: wrapper
+          gradle-version: ${{ env.GRADLE_VERSION }}
           cache-read-only: true
+
+      - name: Regenerate Gradle wrapper
+        run: gradle wrapper --gradle-version=${{ env.GRADLE_VERSION }}
 
       - name: Build debug APK
         run: ./gradlew assembleDebug --stacktrace
 
-      - name: Rename APK with commit SHA
+      - name: Rename APK with short commit SHA
         run: |
           mv app/build/outputs/apk/debug/app-debug.apk \
              app/build/outputs/apk/debug/stackoverflow-search-debug-${GITHUB_SHA::8}.apk
@@ -208,11 +210,14 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: temurin
 
-      - name: Setup Gradle
+      - name: Setup Gradle ${{ env.GRADLE_VERSION }}
         uses: gradle/actions/setup-gradle@v3
         with:
-          gradle-version: wrapper
+          gradle-version: ${{ env.GRADLE_VERSION }}
           cache-read-only: true
+
+      - name: Regenerate Gradle wrapper
+        run: gradle wrapper --gradle-version=${{ env.GRADLE_VERSION }}
 
       - name: Decode keystore
         run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/release.keystore
@@ -265,9 +270,9 @@ jobs:
             **Build:** `#${{ github.run_number }}`
 
             ### Status
-            - Lint checks passed 
-            - All unit tests passed 
-            - Signed with release keystore 
+            - Lint checks passed
+            - All unit tests passed
+            - Signed with release keystore
 
             ### Install
             Download the APK below and run:
