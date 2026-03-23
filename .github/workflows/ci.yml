@@ -1,0 +1,287 @@
+name: CI / CD
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  # Allow manual trigger from GitHub UI
+  workflow_dispatch:
+    inputs:
+      build_release:
+        description: 'Build signed release APK'
+        required: false
+        default: 'false'
+        type: boolean
+
+# Cancel any in-progress run for the same branch when a new push arrives
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  JAVA_VERSION: '17'
+  GRADLE_OPTS: '-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.caching=true'
+
+jobs:
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # JOB 1 — Lint
+  # ─────────────────────────────────────────────────────────────────────────────
+  lint:
+    name: 🔍 Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+          cache: gradle
+
+      - name: Grant execute permission for Gradle wrapper
+        run: chmod +x gradlew
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.toml', '**/*.gradle.kts') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: Run Android Lint
+        run: ./gradlew lintDebug --stacktrace
+
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report
+          path: app/build/reports/lint-results-debug.html
+          retention-days: 14
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # JOB 2 — Unit Tests + Coverage
+  # ─────────────────────────────────────────────────────────────────────────────
+  unit-tests:
+    name: 🧪 Unit Tests & Coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+          cache: gradle
+
+      - name: Grant execute permission for Gradle wrapper
+        run: chmod +x gradlew
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.toml', '**/*.gradle.kts') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: Run unit tests
+        run: ./gradlew testDebugUnitTest --stacktrace
+
+      - name: Generate JaCoCo coverage report
+        run: ./gradlew jacocoTestReport --stacktrace
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: app/build/reports/tests/testDebugUnitTest/
+          retention-days: 14
+
+      - name: Upload coverage report (HTML)
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-html
+          path: app/build/reports/jacoco/jacocoTestReport/html/
+          retention-days: 14
+
+      - name: Upload coverage report (XML — for Codecov)
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-xml
+          path: app/build/reports/jacoco/jacocoTestReport/jacocoTestReport.xml
+          retention-days: 14
+
+      - name: Publish test summary
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Unit Test Results
+          path: app/build/test-results/testDebugUnitTest/*.xml
+          reporter: java-junit
+          fail-on-error: false
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # JOB 3 — Debug Build
+  # ─────────────────────────────────────────────────────────────────────────────
+  build-debug:
+    name: 🏗️ Build Debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [ lint, unit-tests ]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+          cache: gradle
+
+      - name: Grant execute permission for Gradle wrapper
+        run: chmod +x gradlew
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.toml', '**/*.gradle.kts') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Rename APK with commit SHA
+        run: |
+          cd app/build/outputs/apk/debug/
+          mv app-debug.apk stackoverflow-search-debug-${{ github.sha }}.apk
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-apk
+          path: app/build/outputs/apk/debug/stackoverflow-search-debug-${{ github.sha }}.apk
+          retention-days: 7
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # JOB 4 — Release APK (only on main branch push or manual trigger)
+  # ─────────────────────────────────────────────────────────────────────────────
+  build-release:
+    name: Build Signed Release APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: [ lint, unit-tests ]
+    # Run on push to main OR when manually triggered with build_release=true
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && inputs.build_release == true)
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+          cache: gradle
+
+      - name: Grant execute permission for Gradle wrapper
+        run: chmod +x gradlew
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.toml', '**/*.gradle.kts') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      # Decode the keystore from the base64 secret
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/release.keystore
+
+      - name: Build signed release APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file=$GITHUB_WORKSPACE/app/release.keystore \
+            -Pandroid.injected.signing.store.password=$KEYSTORE_PASSWORD \
+            -Pandroid.injected.signing.key.alias=$KEY_ALIAS \
+            -Pandroid.injected.signing.key.password=$KEY_PASSWORD \
+            --stacktrace
+
+      - name: Get version name
+        id: version
+        run: |
+          VERSION=$(./gradlew -q printVersionName 2>/dev/null || echo "1.0")
+          echo "name=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Rename release APK
+        run: |
+          cd app/build/outputs/apk/release/
+          mv app-release.apk stackoverflow-search-v${{ steps.version.outputs.name }}-release.apk
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk
+          path: app/build/outputs/apk/release/stackoverflow-search-v${{ steps.version.outputs.name }}-release.apk
+          retention-days: 30
+
+      - name: Clean up keystore
+        if: always()
+        run: rm -f app/release.keystore
+
+      # Create a GitHub Release automatically on every main push
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.name }}-${{ github.run_number }}
+          name: "Release v${{ steps.version.outputs.name }} (build ${{ github.run_number }})"
+          body: |
+            ## StackOverflow Search App — v${{ steps.version.outputs.name }}
+
+            **Commit:** `${{ github.sha }}`
+            **Branch:** `${{ github.ref_name }}`
+
+            ### What's in this release
+            - Built from commit ${{ github.sha }}
+            - All unit tests passed 
+            - Lint checks passed 
+            - Signed release APK attached below
+
+            ### Install
+            Download `stackoverflow-search-v${{ steps.version.outputs.name }}-release.apk`
+            and install with `adb install <apk-file>` or sideload directly.
+          files: |
+            app/build/outputs/apk/release/stackoverflow-search-v${{ steps.version.outputs.name }}-release.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,37 @@
+# Android
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+*.apk
+*.aab
+*.ap_
+
+# Signing — NEVER commit these
+keystore.properties
+*.jks
+*.keystore
+release.keystore
+keystore.b64
+
+# Gradle
+.gradle/
+build/
+gradle-app.setting
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+
+# IntelliJ / Android Studio
+*.iws
+out/
+.idea/
+*.ipr
+
+# OS
+.DS_Store
+Thumbs.db
