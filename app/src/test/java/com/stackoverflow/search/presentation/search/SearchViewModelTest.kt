@@ -1,14 +1,3 @@
-/**
- * Project: StackOverflow Search App
- * Author: Manpreet Singh Mall
- * Created: 2026-03-22
- *
- * Description:
- * This file is part of the application and follows MVVM and Clean Architecture principles.
- *
- * Tech Stack:
- * Kotlin, Jetpack Compose, Coroutines, Flow
- */
 package com.stackoverflow.search.presentation.search
 
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
@@ -39,6 +28,8 @@ class SearchViewModelTest {
     @MockK lateinit var saveRecentSearchUseCase: SaveRecentSearchUseCase
     @MockK lateinit var deleteRecentSearchUseCase: DeleteRecentSearchUseCase
     @MockK lateinit var clearRecentSearchesUseCase: ClearRecentSearchesUseCase
+    @MockK lateinit var getBookmarkedQuestionsUseCase: GetBookmarkedQuestionsUseCase
+    @MockK lateinit var removeBookmarkUseCase: RemoveBookmarkUseCase
 
     private lateinit var viewModel: SearchViewModel
 
@@ -73,18 +64,22 @@ class SearchViewModelTest {
         )
     )
 
+    private fun buildViewModel() = SearchViewModel(
+        searchQuestionsUseCase,
+        getRecentSearchesUseCase,
+        saveRecentSearchUseCase,
+        deleteRecentSearchUseCase,
+        clearRecentSearchesUseCase,
+        getBookmarkedQuestionsUseCase,
+        removeBookmarkUseCase
+    )
+
     @Before
     fun setUp() {
         MockKAnnotations.init(this)
         Dispatchers.setMain(testDispatcher)
         every { getRecentSearchesUseCase() } returns flowOf(emptyList())
-        viewModel = SearchViewModel(
-            searchQuestionsUseCase,
-            getRecentSearchesUseCase,
-            saveRecentSearchUseCase,
-            deleteRecentSearchUseCase,
-            clearRecentSearchesUseCase
-        )
+        viewModel = buildViewModel()
     }
 
     @After
@@ -255,13 +250,7 @@ class SearchViewModelTest {
         val recentSearches = listOf(RecentSearch(1L, "kotlin"), RecentSearch(2L, "android"))
         every { getRecentSearchesUseCase() } returns flowOf(recentSearches)
 
-        viewModel = SearchViewModel(
-            searchQuestionsUseCase,
-            getRecentSearchesUseCase,
-            saveRecentSearchUseCase,
-            deleteRecentSearchUseCase,
-            clearRecentSearchesUseCase
-        )
+        viewModel = buildViewModel()
 
         assertEquals(2, viewModel.uiState.value.recentSearches.size)
     }
@@ -282,6 +271,42 @@ class SearchViewModelTest {
         viewModel.clearRecentSearches()
 
         coVerify { clearRecentSearchesUseCase() }
+    }
+
+    // --- Bookmarks ---
+
+    @Test
+    fun `loadBookmarks updates bookmarkedQuestions in state`() = runTest {
+        coEvery { getBookmarkedQuestionsUseCase() } returns mockQuestions
+
+        viewModel.loadBookmarks()
+
+        assertEquals(2, viewModel.uiState.value.bookmarkedQuestions.size)
+        assertFalse(viewModel.uiState.value.isLoadingBookmarks)
+    }
+
+    @Test
+    fun `loadBookmarks sets empty list when no bookmarks`() = runTest {
+        coEvery { getBookmarkedQuestionsUseCase() } returns emptyList()
+
+        viewModel.loadBookmarks()
+
+        assertTrue(viewModel.uiState.value.bookmarkedQuestions.isEmpty())
+        assertFalse(viewModel.uiState.value.isLoadingBookmarks)
+    }
+
+    @Test
+    fun `removeBookmark calls use case and refreshes list`() = runTest {
+        coEvery { getBookmarkedQuestionsUseCase() } returns mockQuestions
+        viewModel.loadBookmarks()
+
+        coEvery { removeBookmarkUseCase(1L) } just Runs
+        coEvery { getBookmarkedQuestionsUseCase() } returns listOf(mockQuestions[1])
+
+        viewModel.removeBookmark(1L)
+
+        coVerify { removeBookmarkUseCase(1L) }
+        assertEquals(1, viewModel.uiState.value.bookmarkedQuestions.size)
     }
 
     // --- Refresh ---

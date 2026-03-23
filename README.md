@@ -45,13 +45,13 @@ A fully-featured Stack Overflow search client that calls the Stack Exchange REST
 ## 📱 Screenshots
 <div align="center">
 
-| 🚀 Launcher | 🔍 Search | 🕐 Recent Searches |
-|:---:|:---:|:---:|
-| <img src="screenshots/screen_launcher.png" width="200"/> | <img src="screenshots/screen_search.png" width="200"/> | <img src="screenshots/screen_recent.png" width="200"/> |
+|                       🚀 Launcher                        |                       🔍 Search                        |                   🕐 Recent Searches                   |
+|:--------------------------------------------------------:|:------------------------------------------------------:|:------------------------------------------------------:|
+| <img src="screenshots/screen_launcher.jpg" width="200"/> | <img src="screenshots/screen_search.jpg" width="200"/> | <img src="screenshots/screen_recent.jpg" width="200"/> |
 
-| 📋 Search Results | 📄 Question Detail |
-|:---:|:---:|
-| <img src="screenshots/screen_results.png" width="200"/> | <img src="screenshots/screen_detail.png" width="200"/> |
+|                    📋 Search Results                    |                   📄 Question Detail                   |                       📄 Bookmark                        |
+|:-------------------------------------------------------:|:------------------------------------------------------:|:--------------------------------------------------------:|
+| <img src="screenshots/screen_results.jpg" width="200"/> | <img src="screenshots/screen_detail.jpg" width="200"/> | <img src="screenshots/screen_bookmark.jpg" width="200"/> |
 
 </div>
 ---
