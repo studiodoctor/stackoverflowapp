@@ -193,16 +193,24 @@ class SearchViewModelTest {
 
     @Test
     fun `loadNextPage appends results correctly`() = runTest {
-        coEvery { searchQuestionsUseCase("kotlin", 1) } returns Resource.Success(mockQuestions)
+        // Page 1 must return exactly 20 results so hasMorePages = true
+        // and the loadNextPage guard (!state.hasMorePages) doesn't block the call
+        val page1Questions = (1..20).map { i ->
+            mockQuestions[0].copy(questionId = i.toLong())
+        }
+        coEvery { searchQuestionsUseCase("kotlin", 1) } returns Resource.Success(page1Questions)
         coEvery { saveRecentSearchUseCase("kotlin") } just Runs
         viewModel.search("kotlin")
 
-        val page2Questions = listOf(mockQuestions[0].copy(questionId = 3L))
+        assertTrue("hasMorePages should be true after full page", viewModel.uiState.value.hasMorePages)
+        assertEquals(20, viewModel.uiState.value.questions.size)
+
+        val page2Questions = listOf(mockQuestions[0].copy(questionId = 21L))
         coEvery { searchQuestionsUseCase("kotlin", 2) } returns Resource.Success(page2Questions)
 
         viewModel.loadNextPage()
 
-        assertEquals(3, viewModel.uiState.value.questions.size)
+        assertEquals(21, viewModel.uiState.value.questions.size)
     }
 
     @Test

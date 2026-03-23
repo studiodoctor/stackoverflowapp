@@ -17,6 +17,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
 env:
   JAVA_VERSION: '17'
   GRADLE_VERSION: '8.7'
@@ -51,7 +56,7 @@ jobs:
         run: gradle wrapper --gradle-version=${{ env.GRADLE_VERSION }}
 
       - name: Run Android Lint
-        run: ./gradlew lintDebug --stacktrace
+        run: ./gradlew lintDebug --stacktrace -Pandroid.suppressUnsupportedCompileSdk=35
 
       - name: Upload lint report
         if: always()
@@ -88,7 +93,7 @@ jobs:
         run: gradle wrapper --gradle-version=${{ env.GRADLE_VERSION }}
 
       - name: Run unit tests
-        run: ./gradlew testDebugUnitTest --stacktrace
+        run: ./gradlew testDebugUnitTest --stacktrace -Pandroid.suppressUnsupportedCompileSdk=35
 
       - name: Generate JaCoCo coverage report
         if: always()
@@ -174,7 +179,7 @@ jobs:
         run: gradle wrapper --gradle-version=${{ env.GRADLE_VERSION }}
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug --stacktrace
+        run: ./gradlew assembleDebug --stacktrace -Pandroid.suppressUnsupportedCompileSdk=35
 
       - name: Rename APK with short commit SHA
         run: |
