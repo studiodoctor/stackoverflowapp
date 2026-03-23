@@ -1,10 +1,8 @@
-# Android
+# ── Android ───────────────────────────────────────────────────────────────────
 *.iml
-.gradle
 /local.properties
 /.idea
 .DS_Store
-/build
 /captures
 .externalNativeBuild
 .cxx
@@ -12,26 +10,33 @@
 *.aab
 *.ap_
 
-# Signing — NEVER commit these
+# ── Build output ──────────────────────────────────────────────────────────────
+/build
+app/build
+
+# ── Gradle ────────────────────────────────────────────────────────────────────
+.gradle/
+gradle-app.setting
+
+# Keep wrapper files — CI MUST have these to bootstrap Gradle
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+!gradlew
+!gradlew.bat
+
+# ── Signing — NEVER commit ────────────────────────────────────────────────────
 keystore.properties
 *.jks
 *.keystore
 release.keystore
 keystore.b64
 
-# Gradle
-.gradle/
-build/
-gradle-app.setting
-!gradle-wrapper.jar
-!gradle-wrapper.properties
-
-# IntelliJ / Android Studio
+# ── IntelliJ / Android Studio ─────────────────────────────────────────────────
 *.iws
 out/
 .idea/
 *.ipr
 
-# OS
+# ── OS ────────────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
